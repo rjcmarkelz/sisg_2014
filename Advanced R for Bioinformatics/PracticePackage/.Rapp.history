@@ -1,0 +1,250 @@
+base_temp = 3				# oC
+air_temp = 19.3				# oC
+TU_per_day = (air_temp - base_temp)
+sink_strengths = list(
+Rosette_leaf = list(
+strength = 1,
+ao = 3.07,
+bo = 5.59,
+To = 400),
+Root = list(
+strength = 2.64,
+ao = 13.03,
+bo = 9.58,
+To = 600*1.3))
+PAR = 1.6 # MJ / m^2 / d
+RUE is dynamic with age
+RUE_per_phytomer = function(TT){
+just use average from page 1154
+return(2.96)
+Table 3
+TT is in thermo_time. RUE changes with thermal time
+returns RUE in g / (MJ PAR) # what are these units?
+if(TT < 355) return(2.71)
+if(TT < 406) return(2.71)
+if(TT < 507) return(4.56)
+if(TT < 693) return(1.84)
+return(2.37)
+}
+SLA decreases with age
+SLA_by_TT = function(TT){ #Fig 3b.
+TT is in thermo_time since emergence
+equation in paper appears to have wrong units. By Fig 4, a leaf with mass 0.005g has Leaf area 3cm^2 = 0.0003m^2, or SLA = 0.06. Equation gives SLA~6.
+correction_factor = 100
+SLA = 14.4 * exp(-0.002*TT) / correction_factor
+return(SLA)
+}
+Calculates angles of leaves. Angles are steeper for newer leaves
+leaf_alpha = function(leaf_biomass,i_last){		# equation 5.1
+return alpha in radians
+i = 1:i_last
+i_max = which(leaf_biomass == max(leaf_biomass))
+alpha = rep(10,i_last)
+alpha[i > i_max] = 60*(i[i > i_max]-i_max)/(i_last-i_max) +10
+return(alpha*pi/180)
+}
+demand_function
+demand_function = function(j,To,ao,bo){
+N = dbeta((ao-1)/(ao+bo-2),ao,bo)
+return(1/N*dbeta((j+0.5)/To,ao,bo))
+}
+n_Rosette_phytomer = TT_juvenile/Juv_phytomer + (TT_Rosette-TT_juvenile)/Adult_phytomer
+leaf_expansion_duration = c(rep(leaf_expansion_duration[1],2),rep(leaf_expansion_duration[2],n_Rosette_phytomer-2))
+calculates cumulative TT indexed by phytomer
+y = seq(1:nCycles)
+TT_by_phytomer = pmin((y+1+16.5)/0.084,(y)/.033) - pmin((y+16.5)/0.084,(y-1)/.033)
+TT_by_phytomer[1] = 0
+leaf_biomass = matrix(NA,nCycles,nCycles)
+root_biomass = rep(NA,nCycles)
+Q_j = rep(NA,nCycles)
+D_j = rep(NA,nCycles)
+S_j  = rep(NA,nCycles)
+current_leaf_biomass = 0
+current_root_biomass = 0
+for(j in 1:nCycles){
+during this phytomer, we: 1) calculate existing green leaf areas, 2) calculate total supply, 3) calculate individual demand, 4) allocate new biomass
+current_leaf_biomass[j] = 0
+cum_TT = cumsum(TT_by_phytomer[1:j])
+SLA = SLA_by_TT(cum_TT[j])
+leaf_TT = cumsum(TT_by_phytomer[j:1])[j:1] - TT_by_phytomer[j]
+green_leaves = (leaf_TT < leaf_lifespan)+0
+green_biomass = green_leaves * current_leaf_biomass
+green_surface_area = SLA * green_biomass * cos(leaf_alpha(current_leaf_biomass,j))
+S = max(sapply(1:j,function(k) {
+leaf_subset = k:pmin(k+12,j)
+s=sum(green_surface_area[leaf_subset])
+return(s)
+}))
+RUE = RUE_per_phytomer(cum_TT[j])
+Q = RUE * S * PAR * TT_by_phytomer[j] / TU_per_day
+if(j == 1) Q = Q0
+demand_root = with(sink_strengths$Root,strength * demand_function(cum_TT[j],To,ao,bo))
+demand_leaves = with(sink_strengths$Rosette_leaf,strength * demand_function(leaf_TT,To,ao,bo))
+demand_leaves[leaf_TT > leaf_expansion_duration] = 0
+demand_leaves[1:j > n_Rosette_phytomer] = 0
+total_demand = demand_root + sum(demand_leaves)
+current_root_biomass = current_root_biomass + demand_root * Q / total_demand
+current_leaf_biomass[1:j] = current_leaf_biomass[1:j] + demand_leaves * Q / total_demand
+Q_j[j] = Q
+D_j[j] = total_demand
+S_j[j] = S
+leaf_biomass[1:j,j] = current_leaf_biomass
+root_biomass[j] = current_root_biomass
+}
+plot(NA,NA,xlim=c(0,nCycles),ylim=c(0,max(leaf_biomass,na.rm=T)))
+col=0
+for(i in c(11,15,24,33,nCycles)){
+col=col+1
+lines(1:nCycles,leaf_biomass[,i],col=col)
+}
+plot(cumsum(TT_by_phytomer)[-c(1)],Q_j[-c(1)]/D_j[-c(1)],type='l')
+filled.contour(1:nCycles,1:nCycles,leaf_biomass)
+total_biomass = root_biomass + colSums(leaf_biomass,na.rm=T)
+plot(1:nCycles,total_biomass,type='l',ylim=c(0,max(total_biomass)))
+plot(cumsum(TT_by_phytomer)[1:nCycles],total_biomass,type='l',ylim=c(0,max(total_biomass)))
+lines(cumsum(TT_by_phytomer)[1:nCycles],colSums(leaf_biomass,na.rm=T),col=2)
+lines(cumsum(TT_by_phytomer)[1:nCycles],root_biomass,col=3)
+legend('topleft',legend=c('Total','Leaf','Root'),col=1:3,lty=1)
+1[10]
+1[1]
+1[2]
+str(1)
+dim(1)
+len(1)
+length(1)
+1
+is.vector(1)
+source("http://bioconductor.org/biocLite.R")
+library(org.Hs.eg.db, quietly = TRUE)
+cols(org.Hs.eg.db)
+columns(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+select(org.Hs.eg.db, keys = "TP53", columns = c("SYMBOL", "CHR"),
+keytype= "SYMBOL")
+select(org.Hs.eg.db, keys = 22, columns= c("ENTREZID", "CHR", "SYMBOL"))
+select(org.Hs.eg.db, keys = "22", columns= c("ENTREZID", "CHR", "SYMBOL"))
+keys(org.Hs.eg.db, "CHR")
+head(keys(org.Hs.eg.db, "GO"))
+help(select)
+library(qtl)
+library(qtlbook)
+data(gutlength)
+gutlength <- subset(gutlength, chr= -15)
+boxplot(gutlength ~ sex*cross, data=gutlength$pheno, horizontal=TRUE, xlab= "Gut Length (cm)", col=c("red", "blue"))
+anova(aov(gutlength ~ sex*cross, data=gutlength$pheno))
+cross <- as.numeric(pull.pheno(gutlength, "cross"))
+frommom <- as.numeric(cross < 3)
+forw <- as.numeric(cross==1 | cross == 3)
+gutlength$pheno$frommom <- frommom
+gutlength$pheno$forw <- forw
+anova(aov(gutlength ~ sex*frommom*forw, data=gutlength$pheno))
+cross
+gutlength
+?pull.pheno
+pull.pheno(gutlength)
+sex <- as.numeric(pull.pheno(gutlength, "sex") == "M")
+sex
+crossX <- cbind(frommom, forw, frommom*forw)
+head(crossX)
+x_chrom <- cbind(sex, crossX)
+head(crossX)
+gutlength <- calc.genoprob(gutlength, step=1, error.prob=0.001)
+out.0 <- scanone(gutlength)
+out.a <- scanone(gutlength, addcovar=x_chrom)
+plot(out.0, out.a, col=c("blue", "red"), lty=1:2, ylab="LOD Score", alternate.chrid=TRUE)
+plot(out.a - out.0, ylab="LOD w/ covar - LOD w/o covar", ylim=c(-1, 1), alternate.chrid=TRUE)
+abline(h=0, lty=2)
+ROC <- function(test, disease){
+where is the curve going to change?
+cutpoints <- (-Inf, sort(unique(test)), Inf)
+what values will it take when it does change?
+sensitivity <- sapply(cutpoints,
+function(results){ mean(test > result & mean(disease))}
+)
+specificity <- sapply(cutpoints,
+function(result){ mean (test <= result & !disease)/mean(disease)}
+)
+plot the curve, return the coordinates
+plot(1-specificity, sensitivity, type="1")
+abline(0,1,lty=2)
+return(list(sens=sensitivity, spec=specificity))
+}
+ROC <- function(test, disease){
+where is the curve going to change?
+cutpoints <- (-Inf, sort(unique(test)), Inf)
+what values will it take when it does change?
+sensitivity <- sapply(cutpoints,
+function(results){ mean(test > result & mean(disease))}
+)
+specificity <- sapply(cutpoints,
+function(result){ mean (test <= result & !disease)/mean(disease)}
+)
+plot the curve, return the coordinates
+plot(1-specificity, sensitivity, type="1")
+abline(0,1,lty=2)
+return(list(sens=sensitivity, spec=specificity))
+}
+vignette("GenomeSearching", package = "BSgenome")
+?package.skeleton
+ROC<-function(T,D){
+DD <- table(-T,D)
+tpr <- cumsum(DD[,2])/sum(DD[,2])
+fpr <- cumsum(DD[,1])/sum(DD[,1])
+rval <- list(tpr=tpr, fpr=fpr,
+cutpoints=rev(sort(unique(T))),
+call=sys.call())
+class(rval)<-"ROC"
+rval
+}
+print.ROC<-function(x,...){
+cat("ROC curve: ")
+print(x$call)
+}
+plot.ROC <- function(x, xlab="1-Specificity",
+ylab="Sensitivity", type="l",...){
+plot(x$fpr, x$tpr, xlab=xlab, ylab=ylab, type=type, ...)
+}
+lines.ROC <- function(x, ...){
+lines(x$fpr, x$tpr, ...)
+}
+identify.ROC<-function(x, labels=NULL, ...,digits=1) {
+if (is.null(labels))
+labels<-round(x$cutpoints,digits)
+identify(x$fpr, x$tpr, labels=labels,...)
+}
+ls()
+getwd()
+setwd("~/git.repos/SISG_course/Advanced R for Bioinformatics/")
+setwd("~/git.repos/SISG_course/Advanced R for Bioinformatics/PracticePackage")
+package.skeleton(list = c("ROC", "print.ROC", "plot.ROC", "lines.ROC", "identify.ROC")
+name = "practice")
+package.skeleton(list = c("ROC", "print.ROC", "plot.ROC", "lines.ROC", "identify.ROC"),
+name = "practice")
+package.skeleton(list = c("ROC", "print.ROC"),
+name = "practice")
+ROC           <-function(T,D){
+DD <- table(-T,D)
+tpr <- cumsum(DD[,2])/sum(DD[,2])
+fpr <- cumsum(DD[,1])/sum(DD[,1])
+rval <- list(tpr=tpr, fpr=fpr,
+cutpoints=rev(sort(unique(T))),
+call=sys.call())
+class(rval)<-"ROC"
+rval
+}
+package.skeleton(list = c("ROC", "print.ROC"),
+name = "practice")
+ROC           <-function(T,D)
+{
+DD <- table(-T,D)
+tpr <- cumsum(DD[,2])/sum(DD[,2])
+fpr <- cumsum(DD[,1])/sum(DD[,1])
+rval <- list(tpr=tpr, fpr=fpr,
+cutpoints=rev(sort(unique(T))),
+call=sys.call())
+class(rval)<-"ROC"
+rval
+}
+package.skeleton(list = c("ROC", "print.ROC"),
+name = "practice")
+?set.seed

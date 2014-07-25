@@ -1,0 +1,9 @@
+Package: practice
+Type: Package
+Title: This is a practice package
+Version: 1.0
+Date: 2014-07-17
+Author: Cody Markelz
+Maintainer: Cody Markelz <yourfault@somewhere.net>
+Description: More about what it does (maybe more than one line)
+License: What license is it under?
