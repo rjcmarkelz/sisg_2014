@@ -14,6 +14,7 @@ dim(sachs)
 ##
 
 ## glasso
+## rho is the same thing as lamda
 est.1 <- glasso(s=sachs, rho=5, approx=FALSE, penalize.diagonal=FALSE)
 est.1
 
@@ -24,12 +25,18 @@ est.2 <- glasso(s=sachs, rho=5, approx=TRUE, penalize.diagonal=FALSE)
 A1 <- abs(est.1$wi) > 1E-8; diag(A1) <- 0
 A2 <- abs(est.2$wi) > 1E-8; diag(A2) <- 0
 
+#igraph
 g1 <- graph.adjacency(A1, mode="undirected")
 g2 <- graph.adjacency(A2, mode="undirected")
 
 par(mfrow=c(1,2), mar=c(1,1,1,1))
 plot(g1, layout=layout.circle(g1), main='glasso')
 plot(g2, layout=layout.circle(g2), main='NS')
+
+#encode equation on page 186 of course notes
+a1 = 0.1
+a2 = a1/(2*)
+
 
 ##
 ## Bayeisan networks

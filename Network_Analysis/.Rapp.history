@@ -1,0 +1,250 @@
+Rosette_leaf = list(
+strength = 1,
+ao = 3.07,
+bo = 5.59,
+To = 400),
+Root = list(
+strength = 2.64,
+ao = 13.03,
+bo = 9.58,
+To = 600*1.3))
+PAR = 1.6 # MJ / m^2 / d
+RUE is dynamic with age
+RUE_per_phytomer = function(TT){
+just use average from page 1154
+return(2.96)
+Table 3
+TT is in thermo_time. RUE changes with thermal time
+returns RUE in g / (MJ PAR) # what are these units?
+if(TT < 355) return(2.71)
+if(TT < 406) return(2.71)
+if(TT < 507) return(4.56)
+if(TT < 693) return(1.84)
+return(2.37)
+}
+SLA decreases with age
+SLA_by_TT = function(TT){ #Fig 3b.
+TT is in thermo_time since emergence
+equation in paper appears to have wrong units. By Fig 4, a leaf with mass 0.005g has Leaf area 3cm^2 = 0.0003m^2, or SLA = 0.06. Equation gives SLA~6.
+correction_factor = 100
+SLA = 14.4 * exp(-0.002*TT) / correction_factor
+return(SLA)
+}
+Calculates angles of leaves. Angles are steeper for newer leaves
+leaf_alpha = function(leaf_biomass,i_last){		# equation 5.1
+return alpha in radians
+i = 1:i_last
+i_max = which(leaf_biomass == max(leaf_biomass))
+alpha = rep(10,i_last)
+alpha[i > i_max] = 60*(i[i > i_max]-i_max)/(i_last-i_max) +10
+return(alpha*pi/180)
+}
+demand_function
+demand_function = function(j,To,ao,bo){
+N = dbeta((ao-1)/(ao+bo-2),ao,bo)
+return(1/N*dbeta((j+0.5)/To,ao,bo))
+}
+n_Rosette_phytomer = TT_juvenile/Juv_phytomer + (TT_Rosette-TT_juvenile)/Adult_phytomer
+leaf_expansion_duration = c(rep(leaf_expansion_duration[1],2),rep(leaf_expansion_duration[2],n_Rosette_phytomer-2))
+calculates cumulative TT indexed by phytomer
+y = seq(1:nCycles)
+TT_by_phytomer = pmin((y+1+16.5)/0.084,(y)/.033) - pmin((y+16.5)/0.084,(y-1)/.033)
+TT_by_phytomer[1] = 0
+leaf_biomass = matrix(NA,nCycles,nCycles)
+root_biomass = rep(NA,nCycles)
+Q_j = rep(NA,nCycles)
+D_j = rep(NA,nCycles)
+S_j  = rep(NA,nCycles)
+current_leaf_biomass = 0
+current_root_biomass = 0
+for(j in 1:nCycles){
+during this phytomer, we: 1) calculate existing green leaf areas, 2) calculate total supply, 3) calculate individual demand, 4) allocate new biomass
+current_leaf_biomass[j] = 0
+cum_TT = cumsum(TT_by_phytomer[1:j])
+SLA = SLA_by_TT(cum_TT[j])
+leaf_TT = cumsum(TT_by_phytomer[j:1])[j:1] - TT_by_phytomer[j]
+green_leaves = (leaf_TT < leaf_lifespan)+0
+green_biomass = green_leaves * current_leaf_biomass
+green_surface_area = SLA * green_biomass * cos(leaf_alpha(current_leaf_biomass,j))
+S = max(sapply(1:j,function(k) {
+leaf_subset = k:pmin(k+12,j)
+s=sum(green_surface_area[leaf_subset])
+return(s)
+}))
+RUE = RUE_per_phytomer(cum_TT[j])
+Q = RUE * S * PAR * TT_by_phytomer[j] / TU_per_day
+if(j == 1) Q = Q0
+demand_root = with(sink_strengths$Root,strength * demand_function(cum_TT[j],To,ao,bo))
+demand_leaves = with(sink_strengths$Rosette_leaf,strength * demand_function(leaf_TT,To,ao,bo))
+demand_leaves[leaf_TT > leaf_expansion_duration] = 0
+demand_leaves[1:j > n_Rosette_phytomer] = 0
+total_demand = demand_root + sum(demand_leaves)
+current_root_biomass = current_root_biomass + demand_root * Q / total_demand
+current_leaf_biomass[1:j] = current_leaf_biomass[1:j] + demand_leaves * Q / total_demand
+Q_j[j] = Q
+D_j[j] = total_demand
+S_j[j] = S
+leaf_biomass[1:j,j] = current_leaf_biomass
+root_biomass[j] = current_root_biomass
+}
+plot(NA,NA,xlim=c(0,nCycles),ylim=c(0,max(leaf_biomass,na.rm=T)))
+col=0
+for(i in c(11,15,24,33,nCycles)){
+col=col+1
+lines(1:nCycles,leaf_biomass[,i],col=col)
+}
+plot(cumsum(TT_by_phytomer)[-c(1)],Q_j[-c(1)]/D_j[-c(1)],type='l')
+filled.contour(1:nCycles,1:nCycles,leaf_biomass)
+total_biomass = root_biomass + colSums(leaf_biomass,na.rm=T)
+plot(1:nCycles,total_biomass,type='l',ylim=c(0,max(total_biomass)))
+plot(cumsum(TT_by_phytomer)[1:nCycles],total_biomass,type='l',ylim=c(0,max(total_biomass)))
+lines(cumsum(TT_by_phytomer)[1:nCycles],colSums(leaf_biomass,na.rm=T),col=2)
+lines(cumsum(TT_by_phytomer)[1:nCycles],root_biomass,col=3)
+legend('topleft',legend=c('Total','Leaf','Root'),col=1:3,lty=1)
+1[10]
+1[1]
+1[2]
+str(1)
+dim(1)
+len(1)
+length(1)
+1
+is.vector(1)
+source("http://bioconductor.org/biocLite.R")
+library(org.Hs.eg.db, quietly = TRUE)
+cols(org.Hs.eg.db)
+columns(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+select(org.Hs.eg.db, keys = "TP53", columns = c("SYMBOL", "CHR"),
+keytype= "SYMBOL")
+select(org.Hs.eg.db, keys = 22, columns= c("ENTREZID", "CHR", "SYMBOL"))
+select(org.Hs.eg.db, keys = "22", columns= c("ENTREZID", "CHR", "SYMBOL"))
+keys(org.Hs.eg.db, "CHR")
+head(keys(org.Hs.eg.db, "GO"))
+help(select)
+library(qtl)
+library(qtlbook)
+data(gutlength)
+gutlength <- subset(gutlength, chr= -15)
+boxplot(gutlength ~ sex*cross, data=gutlength$pheno, horizontal=TRUE, xlab= "Gut Length (cm)", col=c("red", "blue"))
+anova(aov(gutlength ~ sex*cross, data=gutlength$pheno))
+cross <- as.numeric(pull.pheno(gutlength, "cross"))
+frommom <- as.numeric(cross < 3)
+forw <- as.numeric(cross==1 | cross == 3)
+gutlength$pheno$frommom <- frommom
+gutlength$pheno$forw <- forw
+anova(aov(gutlength ~ sex*frommom*forw, data=gutlength$pheno))
+cross
+gutlength
+?pull.pheno
+pull.pheno(gutlength)
+sex <- as.numeric(pull.pheno(gutlength, "sex") == "M")
+sex
+crossX <- cbind(frommom, forw, frommom*forw)
+head(crossX)
+x_chrom <- cbind(sex, crossX)
+head(crossX)
+gutlength <- calc.genoprob(gutlength, step=1, error.prob=0.001)
+out.0 <- scanone(gutlength)
+out.a <- scanone(gutlength, addcovar=x_chrom)
+plot(out.0, out.a, col=c("blue", "red"), lty=1:2, ylab="LOD Score", alternate.chrid=TRUE)
+plot(out.a - out.0, ylab="LOD w/ covar - LOD w/o covar", ylim=c(-1, 1), alternate.chrid=TRUE)
+abline(h=0, lty=2)
+setwd("~/git.repos/SISG_course/Advanced R for Bioinformatics/")
+library("RSQLite")
+sqlite <- dbDriver("SQLite")
+conn <- dbConnect(sqlite, "mynewdatabase.db")
+?dbConnect
+conn <- dbConnect(sqlite, "SEAflights.db")
+dbListTables(SEAflights)
+setwd("~/git.repos/SISG_course/Advanced R for Bioinformatics/")
+system("ls *.db", show=TRUE)
+conn <- dbConnect(sqlite, "SEAflights.db")
+dbListTables(SEAflights)
+sqlite <- dbDriver("SQLite")
+conn <- dbConnect(sqlite, "SEAflights.db")
+dbListTables(SEAflights)
+dbListTables(conn)
+SEAflights <- dbConnect(sqlite, "SEAflights.db")
+dbListTables(SEAflights)
+dbListFields(SEAflights, "SEA")
+seadata <- dbGetQuery(SEAflights,
+"select ArrDelay, DepDelay from SEA where Origin = 'SFO' AND Dest = 'SFO'")
+head(seadata)
+seadata <- dbGetQuery(SEAflights,
+"select ArrDelay, DepDelay from SEA where Origin AND Dest = 'SFO'")
+head(seadata)
+seadata <- dbGetQuery(SEAflights,
+"select ArrDelay, DepDelay from SEA where Origin 'SFO'")
+seadata <- dbGetQuery(SEAflights,
+"select ArrDelay, DepDelay from SEA where Origin = 'SFO'")
+head(seadata)
+seadata <- dbGetQuery(SEAflights,
+"select ArrDelay, DepDelay from SEA where Origin & Dest = 'SFO'")
+head(seadata)
+seadata <- dbGetQuery(SEAflights,
+"select ArrDelay, DepDelay from SEA where Origin OR Dest = 'SFO'")
+head(seadata)
+seadata <- dbGetQuery(SEAflights,
+"select Origin, Dest, ArrDelay, DepDelay from SEA where Origin OR Dest = 'SFO'")
+head(seadata)
+dbDisconnect(SEAflights)
+xtr <- matrix(rnorm(100*100),ncol=100)
+xte <- matrix(rnorm(100000*100),ncol=100)
+ytr <- xtr%*%beta + rnorm(100)
+beta <- c(rep(1,10),rep(0,90))
+ytr <- xtr%*%beta + rnorm(100)
+yte <- xte%*%beta + rnorm(100000)
+rsq <- trainerr <- testerr <- NULL
+calculate training and test error
+for(i in 2:100){
+mod <- lm(ytr~xtr[,1:i])
+rsq <- c(rsq,summary(mod)$r.squared)
+beta <- mod$coef[-1]
+intercept <- mod$coef[1]
+trainerr <- c(trainerr, mean((xtr[,1:i]%*%beta+intercept - ytr)^2))
+testerr <- c(testerr, mean((xte[,1:i]%*%beta+intercept - yte)^2))
+}
+par(mfrow=c(1,3))
+plot(2:100,rsq, xlab=’Number of Variables’, ylab="R Squared", log="y")
+abline(v=10,col="red")
+plot(2:100,trainerr, xlab=’Number of Variables’, ylab="Training Error",log="y")
+abline(v=10,col="red")
+plot(2:100,testerr, xlab=’Number of Variables’, ylab="Test Error",log="y")
+abline(v=10,col="red")
+’Number
+par(mfrow=c(1,3))
+plot(2:100,rsq, xlab=’Number of Variables’, ylab="R Squared", log="y")
+for(i in 2:100){
+mod <- lm(ytr~xtr[,1:i])
+rsq <- c(rsq,summary(mod)$r.squared)
+beta <- mod$coef[-1]
+intercept <- mod$coef[1]
+trainerr <- c(trainerr, mean((xtr[,1:i]%*%beta+intercept - ytr)^2))
+testerr <- c(testerr, mean((xte[,1:i]%*%beta+intercept - yte)^2))
+}
+par(mfrow=c(1,3))
+plot(2:100,rsq, xlab=’Number of Variables’, ylab="R Squared", log="y")
+plot(2:100,rsq, xlab="Number of Variables", ylab="R Squared", log="y")
+abline(v=10,col="red")
+library("RISmed")
+setwd("/Users/Cody_2/git.repos/SISG_course/Network_Analysis/")
+?EUtilsSummary
+brass_papers <-  EUtilsSummary("brassica[ti]+Plant Physiology[jo]", db = "pubmed")
+head(brass_papers)
+QueryTranslation(fit)
+QueryTranslation(brass_papers)
+QueryCount(brass_papers)
+fetch <- EUtilsGet(brass_papers)
+fetch
+ArticleTitle(fetch)
+Year(fetch)
+brass_papers <-  EUtilsSummary("brassica[ti]+Plant Journal[jo]", db = "pubmed")
+head(brass_papers)
+QueryTranslation(brass_papers)
+QueryCount(brass_papers)
+fetch <- EUtilsGet(brass_papers)
+fetch
+ArticleTitle(fetch)
+Year(fetch)
+ArticleTitle(fetch)
